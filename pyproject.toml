@@ -1,0 +1,31 @@
+[project]
+name = "hydropack"
+version = "0.0.1"
+description = "glacier hydrology modeling with the finite element method"
+authors = [
+    {name = "Andrew Hoffman", email = "aoh211@columbia.edu"}
+]
+license = {text = "LICENSE"}
+requires-python = ">=3.8"
+dependencies = [
+    "numpy",
+    "scipy",
+    "matplotlib",
+    "rasterio",
+    "xarray",
+    "geojson",
+    "geopandas",
+    "shapely",
+    "pooch",
+    "gmsh",
+    "pygmsh<=6.1.1",
+    "meshio>=3.3.1",
+    "MeshPy",
+    "tqdm",
+    "roltrilinos@git+https://github.com/icepack/Trilinos",
+    "ROL@git+https://github.com/icepack/pyrol",
+]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"

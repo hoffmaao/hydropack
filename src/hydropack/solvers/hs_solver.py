@@ -11,15 +11,15 @@ class HSSolver:
         ### Get a few fields and parameters from the model
 
         # Effective pressure
-        N = firedrake.interpolate(model.N, model.V_cg)
+        N = firedrake.interpolate(model.N, model.U)
         # hydropotential
-        phi = firedrake.interpolate(model.phi, model.V_cg)
+        phi = firedrake.interpolate(model.phi, model.U)
         # hydropotential at zero bed elvation
-        phi_m = firedrake.interpolate(model.phi_m, model.V_cg)
+        phi_m = firedrake.interpolate(model.phi_m, model.U)
         # Cavity gap height
-        h = firedrake.interpolate(model.h, model.V_cg)
+        h = firedrake.interpolate(model.h, model.U)
         # Channel height
-        S = firedrake.interpolate(model.S, model.V_cg)
+        S = firedrake.interpolate(model.S, model.U)
         # Initial model time
         t0 = model.t
         # Rate factor
@@ -51,14 +51,14 @@ class HSSolver:
         phi_reg = 1e-15
 
         # Vector for sliding speed
-        u_b_n = firedrake.interpolate(model.u_b, model.V_cg)
+        u_b_n = firedrake.interpolate(model.u_b, model.U)
         u_b_n = u_b_n.vector().array()
         h0 = firedrake.interpolate(
-            model.h, model.V_cg
-        )  # model.h.vector().array()#firedrake.interpolate(model.h,model.V_cg)
+            model.h, model.U
+        )  # model.h.vector().array()#firedrake.interpolate(model.h,model.U)
         h0 = h0.vector().array()
         # Initial channel areas
-        S0 = firedrake.interpolate(model.S, model.V_cg)
+        S0 = firedrake.interpolate(model.S, model.U)
         S0 = S0.vector().array()
         # Length of h vector
         h_len = len(h0)
@@ -91,7 +91,7 @@ class HSSolver:
             h_n = h.dat.data_ro
 
             phi_grad = model.phi.dx(0)
-            phi_s = firedrake.interpolate(phi_grad, model.V_cg)
+            phi_s = firedrake.interpolate(phi_grad, model.U)
 
             # Along channel flux
             Q_n = (
@@ -115,7 +115,7 @@ class HSSolver:
             # pressure melting term
             pw = phi - phi_m
             pw_s = pw.dx(0)
-            pw_s = firedrake.interpolate(pw_s, model.V_cg)
+            pw_s = firedrake.interpolate(pw_s, model.U)
             f=np.zeros(np.size(q_n))
             f[(S_n > 0) & (phi_s.dat.data_ro*q_n>0.0) ]=1.0
             II_n = (

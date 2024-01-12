@@ -12,6 +12,9 @@
 
 
 import firedrake
+from hydropack.cr_tools import *
+from hydropack.solvers.hs_solver import *
+from hydropack.solvers.phi_solver import *
 from hydropack.constants import (
     ice_density as ρ_I,
     water_density as ρ_W,
@@ -22,7 +25,7 @@ from hydropack.constants import (
 
 
 
-class Glads1DModel:
+class Glads2DModel:
     def __init__(self, model_inputs, in_dir=None):
 
         r"""Initialize model inputs and 
@@ -32,7 +35,10 @@ class Glads1DModel:
         """
 
         self.mesh = model_inputs["mesh"]
-        self.V_cg = firedrake.FunctionSpace(self.mesh, "CG", 2)
+        self.U = firedrake.FunctionSpace(self.mesh, "CG", 1)
+        self.V = firedrake.VectorFunctionSpace(self.mesh,1)
+        self.CR = firedrake.FunctionSpace(mesh,"CR",1) 
+
 
         self.model_inputs = model_inputs
 
@@ -81,19 +87,20 @@ class Glads1DModel:
 
         ### Create some fields
 
-        self.V_cg = firedrake.FunctionSpace(self.mesh, "CG", 1)
 
         # Potential
-        self.phi = firedrake.Function(self.V_cg)
-        # Effective pressure
-        self.N = firedrake.Function(self.V_cg)
+        self.phi = firedrake.Function(self.U)
+        # Effective pressure at nodes
+        self.N_n = firedrake.Function(self.U)
+        # Effective pressure at edges
+        self.N_e = firedrake.Function(self.CR)
         # Stores the value of S**alpha.
-        self.S_alpha = firedrake.Function(self.V_cg)
+        self.S_alpha = firedrake.Function(self.CR)
         self.update_S_alpha()
         # Water pressure
-        self.p_w = firedrake.Function(self.V_cg)
+        self.p_w = firedrake.Function(self.U)
         # Pressure as a fraction of overburden
-        self.pfo = firedrake.Function(self.V_cg)
+        self.pfo = firedrake.Function(self.U)
         # Current time
         self.t = 0.0
 
@@ -120,25 +127,25 @@ class Glads1DModel:
     # conditions on h, h_w, and phi
     def load_inputs(self, in_dir):
         # Bed
-        B = firedrake.Function(self.V_cg)
+        B = firedrake.Function(self.U)
         firedrake.File(in_dir + "B.pvd") >> B
         # Ice thickness
-        H = firedrake.Function(self.V_cg)
+        H = firedrake.Function(self.U)
         firedrake.File(in_dir + "H.pvd") >> H
         # Melt
-        m = firedrake.Function(self.V_cg)
+        m = firedrake.Function(self.U)
         firedrake.File(in_dir + "m.pvd") >> m
         # Sliding speed
-        u_b = firedrake.Function(self.V_cg)
+        u_b = firedrake.Function(self.U)
         firedrake.File(in_dir + "u_b.pvd") >> u_b
         # Potential at 0 pressure
-        phi_m = firedrake.Function(self.V_cg)
+        phi_m = firedrake.Function(self.U)
         firedrake.File(in_dir + "phi_m.pvd") >> phi_m
         # Potential at overburden pressure
-        phi_0 = firedrake.Function(self.V_cg)
+        phi_0 = firedrake.Function(self.U)
         firedrake.File(in_dir + "phi_0.pvd") >> phi_0
         # Ice overburden pressure
-        p_i = firedrake.Function(self.V_cg)
+        p_i = firedrake.Function(self.U)
         firedrake.File(in_dir + "p_i.pvd") >> p_i
 
         self.model_inputs["B"] = B
@@ -151,16 +158,16 @@ class Glads1DModel:
 
     # Update the effective pressure to reflect current value of phi
     def update_N(self):
-        phi_0_tmp = firedrake.interpolate(self.phi_0, self.V_cg)
-        phi_tmp = firedrake.interpolate(self.phi, self.V_cg)
+        phi_0_tmp = firedrake.interpolate(self.phi_0, self.U)
+        phi_tmp = firedrake.interpolate(self.phi, self.U)
         N_tmp = firedrake.assemble(phi_0_tmp - phi_tmp)
         self.N.vector().set_local(N_tmp.vector().array())
         self.N.vector().apply("insert")
 
     # Update the water pressure to reflect current value of phi
     def update_pw(self):
-        phi_tmp = firedrake.interpolate(self.phi, self.V_cg)
-        phi_m_tmp = firedrake.interpolate(self.phi_m, self.V_cg)
+        phi_tmp = firedrake.interpolate(self.phi, self.U)
+        phi_m_tmp = firedrake.interpolate(self.phi_m, self.U)
         p_w_tmp = firedrake.assemble(phi_tmp - phi_m_tmp)
         self.p_w.vector().set_local(p_w_tmp.vector().array())
         self.p_w.vector().apply("insert")
@@ -172,20 +179,33 @@ class Glads1DModel:
         self.update_pw()
 
         # Compute overburden pressure
-        p_w_tmp = firedrake.interpolate(self.p_w, self.V_cg)
-        p_i_tmp = firedrake.interpolate(self.p_i, self.V_cg)
+        p_w_tmp = firedrake.interpolate(self.p_w, self.U)
+        p_i_tmp = firedrake.interpolate(self.p_i, self.U)
         pfo_tmp = firedrake.assemble(p_w_tmp / p_i_tmp)
         self.pfo.vector().set_local(pfo_tmp.vector().array())
         self.pfo.vector().apply("insert")
 
+    # update effective pressure on edge midpoints to reflect current value of phi
+    def update_N_cr(self):
+        self.update_N()
+        self.cr_tools.midpoint(self.N,self.N_cr)
+
+    def update_dphi_ds_cr(self):
+        self.cr_tools.ds_assemble(self.phi,self.dphi_ds_cr)
+
     # Updates all fields derived from phi
     def update_phi(self):
-        # phi_tmp=firedrake.interpolate(self.phi,self.V_cg)
-        self.phi_prev = firedrake.interpolate(self.phi_prev, self.V_cg)
-        phi_tmp = firedrake.interpolate(self.phi, self.V_cg)
+        # phi_tmp=firedrake.interpolate(self.phi,self.U)
+        self.phi_prev = firedrake.interpolate(self.phi_prev, self.U)
+        phi_tmp = firedrake.interpolate(self.phi, self.U)
         self.phi_prev.assign(phi_tmp)
-        self.update_N()
+        self.update_N_cr()
+        self.update_dphi_ds_cr()
         self.update_pfo()
+
+    # Update the edge midpoint values h_cr to reflect the current value of h
+    def update_h_cr(self):
+        self.cr_tools.midpoint(self.h,self.h_cr)
 
     # Update S**alpha to reflect current value of S
     def update_S_alpha(self):
@@ -194,8 +214,8 @@ class Glads1DModel:
         self.S_alpha.vector().apply('insert')
     # Write h, S, pfo, and phi to pvd files
     def write_pvds(self):
-        self.S.assign(firedrake.interpolate(self.S, self.V_cg))
-        self.h.assign(firedrake.interpolate(self.h, self.V_cg))
+        self.S.assign(firedrake.interpolate(self.S, self.CR))
+        self.h.assign(firedrake.interpolate(self.h, self.U))
         self.S_out << self.S
         self.h_out << self.h
         self.phi_out << self.phi
