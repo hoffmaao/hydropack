@@ -12,6 +12,12 @@ class HSSolver:
 
         # Effective pressure
         N = firedrake.interpolate(model.N, model.U)
+        # Sheet height on edges
+        h_cr = firedrake.interpolate(model.h_cr, model.CR)
+        # Effective pressure on edges
+        N_cr = firedrake.interpolate(model.N_cr,model.CR)
+        # Derivative of phi on edges
+        dphi_ds_cr = firedrake.interpolate(model.dphi_ds_cr,model.CR)
         # hydropotential
         phi = firedrake.interpolate(model.phi, model.U)
         # hydropotential at zero bed elvation
@@ -90,7 +96,7 @@ class HSSolver:
             # Sheet thickness
             h_n = h.dat.data_ro
 
-            phi_grad = model.phi.dx(0)
+            phi_grad = model.phi_ds_e
             phi_s = firedrake.interpolate(phi_grad, model.U)
 
             # Along channel flux

@@ -25,8 +25,6 @@ class PhiSolver(object):
         phi_prev = model.phi_prev
         # Potential at overburden pressure
         phi_0 = model.phi_0
-        # Representative width of water system
-        width = model.width
         # Density of ice
         rho_ice = model.pcs["rho_ice"]
         # Density of water
@@ -101,7 +99,7 @@ class PhiSolver(object):
         )
         # Approximate discharge of sheet in direction of channel
         q_c = (
-            -firedrkae.Constant(k)
+            -firedrake.Constant(k)
             * h ** alpha
             * abs(dphi_ds + firedrake.Constant(phi_reg)) ** delta
             * dphi_ds
@@ -109,27 +107,31 @@ class PhiSolver(object):
 
         # Energy dissipation
         Xi = abs(Q_c * dphi_ds) + abs(firedrake.Constant(l_c) * q_c * dphi_ds)
+        # f switch that rurn on or of the sheet flow's contribution to refreezing 
+
+        f = firedrake.conditional(firedrake.gt(S,0),1.0,0.0)
+
+        Pi = (firedrake.Constant(c_t * c_w + rho_water) 
+            * (Q_c + f* l_c * q_c)
+            * firedrake.dot(firedrake.grad(phi - phi_m),t)
+        )
 
 
         # Another channel source term
-        w_c = (Xi / firedrake.Constant(L)) * firedrake.Constant((1. / rho_i) - (1. / rho_w))
+        w_c = ((Xi - Pi) / firedrake.Constant(L) 
+            * firedrake.Constant((1. / rho_ice) - (1. / rho_water))
+        )
 
-        # pressure melting
-        #pw = phi - phi_m
-        #pw_s = pw.dx(0)
-        #pw_s = firedrake.interpolate(pw_s, model.V_cg)
-        #f = firedrake.conditional(firedrake.Or(S>0.0,q_c*pw.dx(0)> 0.0),1.0,0.0)
-        #II_n = -c_t * c_w * rho_water * 0.3 * (Q_c + f * l_c * q_c) * pw_s
-        ## Total opening rate (dissapation of potential energy and pressure melting)
-        #w_c = ((Xi - II_n) / firedrake.Constant(L)) * firedrake.Constant(
-        #    (1.0 / rho_ice) - (1.0 / rho_water))
 
         # closing term assocaited with creep closure
         v_c = firedrake.Constant(A) * S * N ** firedrake.Constant(3.0)
         
         ### Set up the PDE for the potential ###
-        ds = firedrake.Measure("ds")[model.boundaries]
+
+
         theta = firedrake.TestFunction(model.U)
+        dphi = firedrake.TrialFunction(model.U)
+
 
         # Constant in front of storage term
         C1 = firedrake.Constant(c1)
@@ -137,14 +139,9 @@ class PhiSolver(object):
         F_s = C1 * (phi - phi_prev) * theta * firedrake.dx
         
         # Sheet contribution to PDE
-        F_s += (
-            dt
-            * (-firedrake.dot(firedrake.grad(theta), q_s)  + (w - v - m) * theta)
+        F_s += ((-firedrake.dot(firedrake.grad(theta), q_s)  + (w - v - m) * theta)
             * firedrake.dx
-        )
-        # Add any non-zero Neumann boundary conditions
-        for (m, c) in model.n_bcs:
-            F_s += dt * firedrake.Constant(c) * theta * firedrake.ds(m)
+            )
 
         # Channel contribution to PDE
         F_c = dt * (-firedrake.dot(firedrake.grad(theta),t) * Q_c + (w_c - v_c) * theta("+")) * firedrake.dS

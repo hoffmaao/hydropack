@@ -43,9 +43,9 @@ class Glads2DModel:
             model_inputs = self.load_inputs(in_dir)
 
         # Ice thickness
-        self.H = self.model_inputs["H"]
+        self.H = self.model_inputs["thickness"]
         # Bed elevation
-        self.B = self.model_inputs["B"]
+        self.B = self.model_inputs["bed"]
         # Basal sliding speed
         self.u_b = self.model_inputs["u_b"]
         # Melt rate
@@ -81,10 +81,14 @@ class Glads2DModel:
 
         # Potential
         self.phi = firedrake.Function(self.U)
+        # Derivative of potential over channel edges
+        self.dphi_ds_cr = firedrake.Function(self.CR)
         # Effective pressure at nodes
-        self.N_n = firedrake.Function(self.U)
+        self.N = firedrake.Function(self.U)
         # Effective pressure at edges
-        self.N_e = firedrake.Function(self.CR)
+        self.N_cr = firedrake.Function(self.CR)
+        # Sheet height on edges
+        self.h_cr = firedrake.Function(self.CR)
         # Stores the value of S**alpha.
         self.S_alpha = firedrake.Function(self.CR)
         self.update_S_alpha()
@@ -96,10 +100,10 @@ class Glads2DModel:
         self.t = 0.0
 
         ### Output files
-        self.S_out = firedrake.File(self.out_dir + "S.pvd")
-        self.h_out = firedrake.File(self.out_dir + "h.pvd")
-        self.phi_out = firedrake.File(self.out_dir + "phi.pvd")
-        self.pfo_out = firedrake.File(self.out_dir + "pfo.pvd")
+        #self.S_out = firedrake.File(self.out_dir + "S.pvd")
+        #self.h_out = firedrake.File(self.out_dir + "h.pvd")
+        #self.phi_out = firedrake.File(self.out_dir + "phi.pvd")
+        #self.pfo_out = firedrake.File(self.out_dir + "pfo.pvd")
 
         ### Create the solver objects
         # Potential solver
@@ -116,6 +120,7 @@ class Glads2DModel:
 
     # Load all model inputs from a directory except for the mesh and initial
     # conditions on h, h_w, and phi
+    """
     def load_inputs(self, in_dir):
         # Bed
         B = firedrake.Function(self.U)
@@ -146,6 +151,8 @@ class Glads2DModel:
         self.model_inputs["phi_m"] = phi_m
         self.model_inputs["phi_0"] = phi_0
         self.model_inputs["p_i"] = p_i
+
+    """
 
     # Update the effective pressure to reflect current value of phi
     def update_N(self):

@@ -1,6 +1,10 @@
 import firedrake
 import numpy as np
 
+
+
+
+
 # Computes directional of CG functions along edges as well as midpoints of CG
 # functions along edges in parallel
 class CRTools(object):
@@ -8,16 +12,11 @@ class CRTools(object):
   def __init__(self, mesh, U, CR, maps_dir) :
     self.mesh = mesh
     # DG function Space
-    self.U = U
+    self.Q = Q
     # CR function space
     self.CR = CR
-    # Parallel maps input directory
-    self.maps_dir = maps_dir
-    # Process
-    self.MPI_rank = MPI.rank(mpi_comm_world())
+
     
-    # Load in some functions that help do stuff in parallel
-    self.load_maps()
     # Create a map from local facets to global edges    
     self.compute_lf_ge_map()
     # Create maps from local edges to global vertex dofs
@@ -29,8 +28,8 @@ class CRTools(object):
     # CR test function
     CR = firedrake.TestFunction(CR)
     # Facet and tangent normals
-    n = firedrake.FacetNormal(mesh)
-    t = firedrake.as_vector([n[1], -n[0]])
+    self.n = firedrake.FacetNormal(mesh)
+    self.t = firedrake.as_vector([n[1], -n[0]])
     # Directional derivative form
     self.F = (firedrake.dot(firedrake.grad(self.U), t) * CR)('+') * dS
     
@@ -143,33 +142,41 @@ class CRTools(object):
     
     return (local_vals0 + local_vals1) / 2.0
   
-  # Loads all parallel maps from the directory self.maps_dir
-  def load_maps(self):
-    # Facets to edges
-    self.f_e = firedrake.FacetFunction('size_t', self.mesh)
-    File(self.maps_dir + "/f_e.xml") >> self.f_e
-    
-    # Global edge order                                          
-    self.f_cr = firedrake.Function(self.CR)
-    File(self.maps_dir + "/f_cr.xml") >> self.f_cr
-    
-    # Edges to first global vertex dof
-    self.e_v0 = firedrake.Function(self.CR)
-    File(self.maps_dir + "/e_v0.xml") >> self.e_v0
-    
-    # Edges to second global vertex dof
-    self.e_v1 = firedrake.Function(self.CR)
-    File(self.maps_dir + "/e_v1.xml") >> self.e_v1
-    
-    # Global vertex order
-    self.f_cg = firedrake.Function(self.U)
-    File(self.maps_dir + "/f_cg.xml") >> self.f_cg
-    
-    # Edge lengths
-    self.e_lens = firedrake.Function(self.CR)
-    File(self.maps_dir + "/e_lens.xml") >> self.e_lens
-  
   # Plots a CR function
   def plot_cr(self, cr):
     self.copy_cr_to_facet(cr, self.ff_plot)
     plot(self.ff_plot, interactive = True)
+  
+
+  def calculate_edge_to_facet_map(self, V):
+    mesh = V.mesh()
+    n_V = V.dim()
+
+    # Find coordinates of dofs and put into array with index
+    coords_V = np.hstack((np.reshape(V.dofmap().tabulate_all_coordinates(mesh),(n_V,2)), np.zeros((n_V,1))))
+    coords_V[:,2] = range(n_V)
+
+    # Find coordinates of facets and put into array with index
+    coords_f = np.zeros((n_V,3))
+    for f in dolfin.facets(mesh):
+        coords_f[f.index(),0] = f.midpoint().x()
+        coords_f[f.index(),1] = f.midpoint().y()
+        coords_f[f.index(),2] = f.index() 
+
+    # Sort these the same way
+    coords_V = np.array(sorted(coords_V,key=tuple))
+    coords_f = np.array(sorted(coords_f,key=tuple))
+
+    # the order of the indices becomes the map
+    V2fmapping = np.zeros((n_V,2))
+    V2fmapping[:,0] = coords_V[:,2]
+    V2fmapping[:,1] = coords_f[:,2]
+
+    return (V2fmapping[V2fmapping[:,0].argsort()][:,1]).astype('int')
+
+
+  def copy_to_facet(self, f, f_out) :
+    f_out.array()[self.e2f] = f.vector()
+  
+  def copy_vector_to_facet(self, v, f_out) :
+    f_out.array()[self.e2f] = v
