@@ -130,7 +130,7 @@ class PhiSolver(object):
 
 
         theta = firedrake.TestFunction(model.U)
-        dphi = firedrake.TrialFunction(model.U)
+        #dphi = firedrake.TrialFunction(model.U)
 
 
         # Constant in front of storage term
@@ -174,11 +174,12 @@ class PhiSolver(object):
                 self.model.d_bcs,
                 J=self.J,
                 solver_parameters={
-                    "snes_monitor": None,
-                    "snes_view": None,
-                    "ksp_monitor_true_residual": None,
-                    "snes_converged_reason": None,
-                    "ksp_converged_reason": None,
+                    "snes_type": "newtonls",
+                    "snes_rtol": 5e-11,
+                    "snes_atol": 5e-10,
+                    "pc_type": "lu",
+                    "snes_max_it": 50,
+                    "mat_type": "aij",
                 },
             )  # , solver_parameters = self.model.newton_params)
 

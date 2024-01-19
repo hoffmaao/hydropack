@@ -9,32 +9,27 @@ import numpy as np
 # functions along edges in parallel
 class CRTools(object):
   
-  def __init__(self, mesh, U, CR, maps_dir) :
+  def __init__(self, mesh, U, CR) :
     self.mesh = mesh
     # DG function Space
-    self.Q = Q
+    self.U = U
     # CR function space
     self.CR = CR
+    #self.facet_length = firedrake.FacetFunction('double',mesh)
 
-    
-    # Create a map from local facets to global edges    
-    self.compute_lf_ge_map()
-    # Create maps from local edges to global vertex dofs
-    self.compute_le_gv_maps()
-    
     # We'll set up a form that allows us to take the derivative of CG functions
     # over edges 
     self.U = firedrake.Function(U)
     # CR test function
-    CR = firedrake.TestFunction(CR)
+    V_CR = firedrake.TestFunction(CR)
     # Facet and tangent normals
     self.n = firedrake.FacetNormal(mesh)
-    self.t = firedrake.as_vector([n[1], -n[0]])
+    self.t = firedrake.as_vector([self.n[1], -self.n[0]])
     # Directional derivative form
-    self.F = (firedrake.dot(firedrake.grad(self.U), t) * CR)('+') * dS
+    self.F = (firedrake.dot(firedrake.grad(self.U), self.t) * V_CR)('+') * dS
     
     # Facet function for plotting 
-    self.ff_plot = firedrake.FacetFunctionDouble(mesh)
+    #self.ff_plot = firedrake.FacetFunctionDouble(mesh)
     
   # Copies a CR function to a facet function
   def copy_cr_to_facet(self, cr, ff) :
@@ -45,33 +40,7 @@ class CRTools(object):
     local_vals = cr_vals[self.lf_ge]    
     ff.array()[:] = local_vals
   
-  # Compute a map from local facets to indexes in a global array of edge values
-  def compute_lf_ge_map(self):
-    #Gather an array of global edge values
-    x = firedrake.Vector()
-    self.f_cr.vector().gather(x, np.array(range(self.CR.dim()), dtype = 'intc'))
-    x = x.array()
-    
-    # Sort the array
-    indexes = x.argsort()
-
-    # Create the map    
-    self.lf_ge = indexes[self.f_e.array()]
   
-  # Create  maps from local edges to indexes in a global array of vertex values
-  def compute_le_gv_maps(self):
-    # Gather an array of global vertex values
-    x = firedrake.Vector()
-    self.f_cg.vector().gather(x, np.array(range(self.U.dim()), dtype = 'intc'))
-    x = x.array()
-    
-    # Sort the array
-    indexes = x.argsort()
-
-    # Create the maps
-    self.le_gv0 = indexes[np.array(self.e_v0.vector().array(), dtype = 'int')]
-    self.le_gv1 = indexes[np.array(self.e_v1.vector().array(), dtype = 'int')]
-
   # Computes the directional derivatives of a CG function along each edge and
   def ds(self, cg, cr):
     cr.vector().set_local(self.ds_array(cg))

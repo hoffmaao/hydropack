@@ -34,6 +34,8 @@ class Glads2DModel:
         self.V = firedrake.VectorFunctionSpace(self.mesh,"CG",1)
         self.CR = firedrake.FunctionSpace(self.mesh,"CR",1) 
 
+        self.cr_tools = CRTools(self.mesh, self.U, self.CR)
+
 
         self.model_inputs = model_inputs
 
@@ -89,6 +91,7 @@ class Glads2DModel:
         self.N_cr = firedrake.Function(self.CR)
         # Sheet height on edges
         self.h_cr = firedrake.Function(self.CR)
+        self.update_h_cr()
         # Stores the value of S**alpha.
         self.S_alpha = firedrake.Function(self.CR)
         self.update_S_alpha()
