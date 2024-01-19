@@ -108,17 +108,21 @@ class PhiSolver(object):
         )
 
         # Energy dissipation
-        Xi = abs(Q_c * dphi_ds) + abs(firedrake.Constant(l_c) * q_c * dphi_ds
+        Xi = abs(Q_c * dphi_ds) + abs(firedrake.Constant(l_c) * q_c * dphi_ds)
+
+
+        # Another channel source term
+        w_c = (Xi / firedrake.Constant(L)) * firedrake.Constant((1. / rho_i) - (1. / rho_w))
 
         # pressure melting
-        pw = phi - phi_m
-        pw_s = pw.dx(0)
-        pw_s = firedrake.interpolate(pw_s, model.V_cg)
-        f = firedrake.conditional(firedrake.Or(S>0.0,q_c*pw.dx(0)> 0.0),1.0,0.0)
-        II_n = -c_t * c_w * rho_water * 0.3 * (Q_c + f * l_c * q_c) * pw_s
-        # Total opening rate (dissapation of potential energy and pressure melting)
-        w_c = ((Xi - II_n) / firedrake.Constant(L)) * firedrake.Constant(
-            (1.0 / rho_ice) - (1.0 / rho_water))
+        #pw = phi - phi_m
+        #pw_s = pw.dx(0)
+        #pw_s = firedrake.interpolate(pw_s, model.V_cg)
+        #f = firedrake.conditional(firedrake.Or(S>0.0,q_c*pw.dx(0)> 0.0),1.0,0.0)
+        #II_n = -c_t * c_w * rho_water * 0.3 * (Q_c + f * l_c * q_c) * pw_s
+        ## Total opening rate (dissapation of potential energy and pressure melting)
+        #w_c = ((Xi - II_n) / firedrake.Constant(L)) * firedrake.Constant(
+        #    (1.0 / rho_ice) - (1.0 / rho_water))
 
         # closing term assocaited with creep closure
         v_c = firedrake.Constant(A) * S * N ** firedrake.Constant(3.0)

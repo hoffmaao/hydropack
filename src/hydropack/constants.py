@@ -14,13 +14,17 @@ as the acceleration due to gravity, the density, of ice and water, etc.
 
 year = 60.0 * 60.0 * 24.0 * 365.0
 # Density of water 
-density_water = 1000.0 # kg / m^3
+water_density = 1000.0 # kg / m^3
 # Density of ice 
-densit_ice = 910.0 # kg / m^3
+ice_density = 910.0 # kg / m^3
 # Gravitational acceleration 
 gravity = 9.81 # m / s^2
 # Flow rate factor of ice
 f = 2.25e-25 # 1 / Pa^3 * s
+# Glen exponent
+glen_flow_law = 3
+# Gravitational constant
+gravity = 9.8
 # Specific heat capacity of ice 
 specific_heat = 4.22e3 # J / (kg * K)
 # Pressure melting coefficient 

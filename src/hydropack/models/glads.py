@@ -15,12 +15,7 @@ import firedrake
 from hydropack.cr_tools import *
 from hydropack.solvers.hs_solver import *
 from hydropack.solvers.phi_solver import *
-from hydropack.constants import (
-    ice_density as ρ_I,
-    water_density as ρ_W,
-    glen_flow_law as n,
-    gravity as g,
-    )
+from hydropack.constants import *
 
 
 
@@ -36,8 +31,8 @@ class Glads2DModel:
 
         self.mesh = model_inputs["mesh"]
         self.U = firedrake.FunctionSpace(self.mesh, "CG", 1)
-        self.V = firedrake.VectorFunctionSpace(self.mesh,1)
-        self.CR = firedrake.FunctionSpace(mesh,"CR",1) 
+        self.V = firedrake.VectorFunctionSpace(self.mesh,"CG",1)
+        self.CR = firedrake.FunctionSpace(self.mesh,"CR",1) 
 
 
         self.model_inputs = model_inputs
@@ -69,10 +64,6 @@ class Glads2DModel:
         self.d_bcs = self.model_inputs["d_bcs"]
         # Channel areas
         self.S = self.model_inputs["S_init"]
-        # Drainage width
-        self.width = self.model_inputs["width"]
-        # Output directory
-        self.out_dir = self.model_inputs["out_dir"]
 
         # If there is a dictionary of physical constants specified, use it.
         # Otherwise use the defaults.
