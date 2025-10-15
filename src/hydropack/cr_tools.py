@@ -1,151 +1,111 @@
-import firedrake
 import numpy as np
+import firedrake as fd
 
 
+class CRTools:
+    """
+    Parallel-safe Crouzeix–Raviart (CR) facet utilities:
+      - facet (edge) lengths on a CR space
+      - CG -> CR facet midpoint transfer
+      - |∂u/∂s| on each facet (magnitude of tangential derivative)
+    All operations use facet integrals (assembly) and avoid global numpy→local
+    vector writes or par_loops, so they are MPI-safe out of the box.
+    """
 
+    def __init__(self, mesh, U, CR):
+        # Accept either FunctionSpace or Function for U/CR
+        self.mesh = mesh
+        self.U = U.function_space() if isinstance(U, fd.Function) else U
+        self.CR = CR.function_space() if isinstance(CR, fd.Function) else CR
 
+        # Geometry bits on facets
+        n = fd.FacetNormal(mesh)          # unit normal on facets
+        self.t = fd.as_vector([n[1], -n[0]])  # rotate n to get a unit tangent (2-D)
 
-# Computes directional of CG functions along edges as well as midpoints of CG
-# functions along edges in parallel
-class CRTools(object):
-  
-  def __init__(self, mesh, U, CR) :
-    self.mesh = mesh
-    # DG function Space
-    self.U = U
-    # CR function space
-    self.CR = CR
-    #self.facet_length = firedrake.FacetFunction('double',mesh)
+        # Convenience test function on CR
+        self._w = fd.TestFunction(self.CR)
 
-    # We'll set up a form that allows us to take the derivative of CG functions
-    # over edges 
-    self.U = firedrake.Function(U)
-    # CR test function
-    V_CR = firedrake.TestFunction(CR)
-    # Facet and tangent normals
-    self.n = firedrake.FacetNormal(mesh)
-    self.t = firedrake.as_vector([self.n[1], -self.n[0]])
-    # Directional derivative form
-    self.F = (firedrake.dot(firedrake.grad(self.U), self.t) * V_CR)('+') * dS
-    
-    # Facet function for plotting 
-    #self.ff_plot = firedrake.FacetFunctionDouble(mesh)
-    
-  # Copies a CR function to a facet function
-  def copy_cr_to_facet(self, cr, ff) :
-    # Gather all edge values from each of the local arrays on each process
-    cr_vals = firedrake.Vector()
-    cr.vector().gather(cr_vals, np.array(range(self.CR.dim()), dtype = 'intc'))
-    # Get the edge values corresponding to each local facet
-    local_vals = cr_vals[self.lf_ge]    
-    ff.array()[:] = local_vals
-  
-  
-  # Computes the directional derivatives of a CG function along each edge and
-  def ds(self, cg, cr):
-    cr.vector().set_local(self.ds_array(cg))
-    cr.vector().apply("insert")
+        # Scratch fields we reuse
+        self._tmpU = fd.Function(self.U, name="tmpU")
+        self._tmpCR = fd.Function(self.CR, name="tmpCR")
 
-  # Computes the directional derivatives of a CG function along each edge and
-  # returns an array
-  def ds_array(self, cg):
-    # Gather all edge values from each of the local arrays on each process
-    cg_vals = firedrake.Vector()
-    cg.vector().gather(cg_vals, np.array(range(self.U.dim()), dtype = 'intc'))  
-    
-    # Get the two vertex values on each local edge
-    local_vals0 = cg_vals.array()[self.le_gv0] 
-    local_vals1 = cg_vals.array()[self.le_gv1]
-    
-    return abs(local_vals0 - local_vals1) / self.e_lens.vector().array()
+        # -------------------------------
+        # Precompute facet "mass" and edge lengths on CR DOFs
+        # -------------------------------
+        # Facet mass for each CR basis function (integral of test over the facet).
+        # We assemble separately on interior and boundary facets.
+        mass_int = fd.assemble(self._w('+') * fd.dS)   # interior facets
+        mass_bnd = fd.assemble(self._w * fd.ds)        # boundary facets
+        self._facet_mass = fd.Function(self.CR, name="facet_mass")
+        self._facet_mass.assign(0.0)
+        self._facet_mass.dat.data[:] = mass_int.dat.data_ro + mass_bnd.dat.data_ro
 
-  def ds_assemble(self, cg, cr):
-    self.U.assign(cg)
-    
-    # Get the height difference of two vertexes on each edge
-    A = firedrake.abs(firedrake.assemble(self.F).array())
-    # Now divide by the edge lens
-    dcg_ds = A / self.e_lens.vector().array()
-    
-    cr.vector().set_local(dcg_ds)
-    cr.vector().apply("insert")
-    
-  def test(self, cg):
-    cg_vals = firedrake.Vector()
-    cg.vector().gather(cg_vals, np.array(range(self.U.dim()), dtype = 'intc'))  
-    
-    local_vals0 = cg_vals.array()[self.le_gv0] 
-    local_vals1 = cg_vals.array()[self.le_gv1]
-    
-    edge_numbers = np.array(self.f_cr.vector().array(), dtype = 'int')
-    indexes = edge_numbers.argsort()
-    
-    v0 = np.array(local_vals0[indexes], dtype = 'int')
-    v1 = np.array(local_vals1[indexes], dtype = 'int')
-    
-    A = np.transpose([edge_numbers[indexes], v0, v1]) 
-    
-    out = "P" + str(self.MPI_rank) 
-    np.savetxt(out, A, fmt = "%i")
+        # Edge lengths (FacetArea) per CR DOF via facet integrals.
+        # (FacetArea is valid on facet integrals; the earlier crash was only when
+        # trying to point-evaluate it with Interpolator.)
+        len_int = fd.assemble(fd.FacetArea(mesh)('+') * self._w('+') * fd.dS)
+        len_bnd = fd.assemble(fd.FacetArea(mesh) * self._w * fd.ds)
+        self.e_lens = fd.Function(self.CR, name="edge_length")
+        self.e_lens.assign(0.0)
+        self.e_lens.dat.data[:] = len_int.dat.data_ro + len_bnd.dat.data_ro
 
-    
-    #print(self.MPI_rank, "edges", edge_numbers[indexes][:100])
-    #print(self.MPI_rank, "vals0", local_vals0[indexes][:100])
-    #print(self.MPI_rank, "vals1", local_vals1[indexes][:100])   
-  
-  # Computes the value of a CG functions at the midpoint of edges and copies
-  # the result to a CR function
-  def midpoint(self, cg, cr):
-    cr.vector().set_local(self.midpoint_array(cg))
-    cr.vector().apply("insert")
-  
-  # Computes the value of a CG functions at the midpoint of edges and returns
-  # an array
-  def midpoint_array(self, cg):
-    cg_vals = firedrake.Vector()
-    cg.vector().gather(cg_vals, np.array(range(self.U.dim()), dtype = 'intc'))
-    
-    # Get the two vertex values on each local edge
-    local_vals0 = cg_vals.array()[self.le_gv0] 
-    local_vals1 = cg_vals.array()[self.le_gv1]
-    
-    return (local_vals0 + local_vals1) / 2.0
-  
-  # Plots a CR function
-  def plot_cr(self, cr):
-    self.copy_cr_to_facet(cr, self.ff_plot)
-    plot(self.ff_plot, interactive = True)
-  
+    # ---------------- Public API ----------------
 
-  def calculate_edge_to_facet_map(self, V):
-    mesh = V.mesh()
-    n_V = V.dim()
+    def edge_lengths(self):
+        """Return CR Function holding edge (facet) lengths."""
+        return self.e_lens
 
-    # Find coordinates of dofs and put into array with index
-    coords_V = np.hstack((np.reshape(V.dofmap().tabulate_all_coordinates(mesh),(n_V,2)), np.zeros((n_V,1))))
-    coords_V[:,2] = range(n_V)
+    def midpoint(self, cg_func, cr_out=None):
+        """
+        Evaluate a CG function at CR facet DOFs (midpoints) and write into CR.
+        Uses Interpolator(cg -> CR), which is valid for Functions (point eval).
+        """
+        if cr_out is None:
+            cr_out = self._tmpCR
+        fd.Interpolator(cg_func, cr_out).interpolate()
+        return cr_out
 
-    # Find coordinates of facets and put into array with index
-    coords_f = np.zeros((n_V,3))
-    for f in dolfin.facets(mesh):
-        coords_f[f.index(),0] = f.midpoint().x()
-        coords_f[f.index(),1] = f.midpoint().y()
-        coords_f[f.index(),2] = f.index() 
+    def midpoint_array(self, cg_func):
+        """Local (this-rank) NumPy view of facet midpoint values."""
+        return self.midpoint(cg_func).dat.data_ro
 
-    # Sort these the same way
-    coords_V = np.array(sorted(coords_V,key=tuple))
-    coords_f = np.array(sorted(coords_f,key=tuple))
+    def ds(self, cg_func, cr_out=None):
+        """
+        Compute |∂u/∂s| on each facet:
+            numerator = ∫_facet (grad u · t) * w_CR ds   (assembled on dS and ds)
+            denominator = ∫_facet w_CR ds  (facet mass, precomputed)
+            result = |numerator| / denominator
+        This yields the average magnitude of the tangential derivative over
+        each facet, aligned with the CR basis' dual.
+        """
+        if cr_out is None:
+            cr_out = self._tmpCR
 
-    # the order of the indices becomes the map
-    V2fmapping = np.zeros((n_V,2))
-    V2fmapping[:,0] = coords_V[:,2]
-    V2fmapping[:,1] = coords_f[:,2]
+        # Ensure tmpU contains cg_func
+        self._tmpU.assign(cg_func)
 
-    return (V2fmapping[V2fmapping[:,0].argsort()][:,1]).astype('int')
+        # Assemble numerator on interior and boundary facets
+        num_int = fd.assemble(fd.dot(fd.grad(self._tmpU), self.t)('+') * self._w('+') * fd.dS)
+        num_bnd = fd.assemble(fd.dot(fd.grad(self._tmpU), self.t) * self._w * fd.ds)
 
+        # Combine and normalize by facet mass
+        numerator = num_int.dat.data_ro + num_bnd.dat.data_ro
+        denom = self._facet_mass.dat.data_ro
 
-  def copy_to_facet(self, f, f_out) :
-    f_out.array()[self.e2f] = f.vector()
-  
-  def copy_vector_to_facet(self, v, f_out) :
-    f_out.array()[self.e2f] = v
+        # Protect against divide-by-zero (degenerate facets not expected, but be safe)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            vals = np.abs(numerator) / np.where(denom > 0.0, denom, 1.0)
+
+        cr_out.dat.data[:] = vals
+        return cr_out
+
+    def ds_array(self, cg_func):
+        """Local (this-rank) NumPy view of |∂u/∂s| on facets."""
+        return self.ds(cg_func).dat.data_ro
+
+    # glads.py expects this exact name/signature:
+    def ds_assemble(self, cg_func, cr_out):
+        """
+        Compatibility wrapper for GLADS: writes |∂u/∂s| on facets into cr_out.
+        """
+        self.ds(cg_func, cr_out)

@@ -52,6 +52,9 @@ class PhiSolver(object):
         # Gravitational acceleration
         g = model.pcs["g"]
 
+        # Homotopy ramp for channel coupling (1.0 = full)
+        self._gamma = firedrake.Constant(1.0)
+
         # Exponents
         alpha = model.pcs["alpha"]
         delta = model.pcs["delta"]
@@ -69,10 +72,11 @@ class PhiSolver(object):
         # Flux vector for sheet
         q_s = (
             -firedrake.Constant(k)
-            * h ** alpha
-            * (firedrake.dot(firedrake.grad(phi),firedrake.grad(phi)) + phi_reg) ** (delta/2.0)
+            * h**alpha
+            * (firedrake.dot(firedrake.grad(phi), firedrake.grad(phi)) + phi_reg**2)**(delta/2.0)
             * firedrake.grad(phi)
-        )
+            )
+
         # Opening term
         w = firedrake.conditional(
             firedrake.gt(firedrake.Constant(h_r) - h, firedrake.Constant(0.0)), u_b * (firedrake.Constant(h_r) - h) / firedrake.Constant(l_r), firedrake.Constant(0.0)
@@ -86,24 +90,28 @@ class PhiSolver(object):
 
         # Discharge through channels
         # Normal and tangent vectors
-        n = firedrake.FacetNormal(model.mesh)
-        t = firedrake.as_vector([n[1],-n[0]])
+        n = firedrake.FacetNormal(model.mesh)  # explicitly restricted
+        t = firedrake.as_vector([n[1], -n[0]])
 
-        dphi_ds = firedrake.dot(firedrake.grad(phi),t)
+        dphi_ds = firedrake.dot(firedrake.grad(phi), t)
+
+        abs_dphi_delta = (dphi_ds**2 + phi_reg**2)**(delta/2.0)
 
         Q_c = (
             -firedrake.Constant(k_c)
             * S_alpha
-            * abs(dphi_ds + firedrake.Constant(phi_reg)) ** delta
+            * abs_dphi_delta
             * dphi_ds
         )
-        # Approximate discharge of sheet in direction of channel
+
         q_c = (
             -firedrake.Constant(k)
-            * h ** alpha
-            * abs(dphi_ds + firedrake.Constant(phi_reg)) ** delta
+            * h**alpha
+            * abs_dphi_delta
             * dphi_ds
         )
+
+
 
         # Energy dissipation
         Xi = abs(Q_c * dphi_ds) + abs(firedrake.Constant(l_c) * q_c * dphi_ds)
@@ -111,20 +119,12 @@ class PhiSolver(object):
 
         f = firedrake.conditional(firedrake.gt(S,0),1.0,0.0)
 
-        Pi = (firedrake.Constant(c_t * c_w + rho_water) 
-            * (Q_c + f* l_c * q_c)
-            * firedrake.dot(firedrake.grad(phi - phi_m),t)
-        )
+        Pi = firedrake.Constant(c_t * c_w * rho_water) * (Q_c + f * firedrake.Constant(l_c) * q_c) * firedrake.dot(firedrake.grad(phi - phi_m), t)
+        
 
+        w_c = ((Xi - Pi) / firedrake.Constant(L) * firedrake.Constant((1. / rho_ice) - (1. / rho_water)))
 
-        # Another channel source term
-        w_c = ((Xi - Pi) / firedrake.Constant(L) 
-            * firedrake.Constant((1. / rho_ice) - (1. / rho_water))
-        )
-
-
-        # closing term assocaited with creep closure
-        v_c = firedrake.Constant(A) * S * N ** firedrake.Constant(3.0)
+        v_c = (firedrake.Constant(A) * S * N ** firedrake.Constant(3.0))
         
         ### Set up the PDE for the potential ###
 
@@ -144,9 +144,10 @@ class PhiSolver(object):
             )
 
         # Channel contribution to PDE
-        F_c = dt * (-firedrake.dot(firedrake.grad(theta),t) * Q_c + (w_c - v_c) * theta("+")) * firedrake.dS
-
-        # Variational form
+        F_c = dt * (
+            -firedrake.dot(firedrake.grad(theta)('+'), t('+')) * Q_c('+')
+            + (w_c('+') - v_c('+')) * theta('+')
+        ) * firedrake.dS        # Variational form
         F = F_s + F_c
         # Get the Jacobian
         dphi = firedrake.TrialFunction(model.U)
@@ -174,13 +175,23 @@ class PhiSolver(object):
                 self.model.d_bcs,
                 J=self.J,
                 solver_parameters={
+                    # Nonlinear (SNES)
                     "snes_type": "newtonls",
-                    "snes_rtol": 5e-11,
-                    "snes_atol": 5e-10,
+                    "snes_linesearch_type": "bt",
+                    "snes_linesearch_damping": 1.0,      # same spirit as relaxation_parameter
+                    "snes_rtol": 1.0e-5,
+                    "snes_atol": 1.0e-5,
+                    "snes_max_it": 30,
+                    #"snes_monitor": None,                # print ||F|| each Newton step
+                    #"snes_error_if_not_converged": True,
+                    #"snes_type": "newtontrdc",        # trust-region
+                    #"snes_tr_monitor": None,
+
+                    # Linear (KSP/PC)
+                    "ksp_type": "preonly",
                     "pc_type": "lu",
-                    "snes_max_it": 50,
-                    "mat_type": "aij",
-                },
+                    "pc_factor_mat_solver_type": "umfpack",   # use "mumps" when running in parallel
+                }
             )  # , solver_parameters = self.model.newton_params)
 
             # Derive values from the new potential

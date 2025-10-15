@@ -16,7 +16,7 @@ from hydropack.cr_tools import *
 from hydropack.solvers.hs_solver import *
 from hydropack.solvers.phi_solver import *
 from hydropack.constants import *
-
+import os
 
 
 
@@ -33,7 +33,6 @@ class Glads2DModel:
         self.U = firedrake.FunctionSpace(self.mesh, "CG", 1)
         self.V = firedrake.VectorFunctionSpace(self.mesh,"CG",1)
         self.CR = firedrake.FunctionSpace(self.mesh,"CR",1) 
-
         self.cr_tools = CRTools(self.mesh, self.U, self.CR)
 
 
@@ -102,12 +101,6 @@ class Glads2DModel:
         # Current time
         self.t = 0.0
 
-        ### Output files
-        #self.S_out = firedrake.File(self.out_dir + "S.pvd")
-        #self.h_out = firedrake.File(self.out_dir + "h.pvd")
-        #self.phi_out = firedrake.File(self.out_dir + "phi.pvd")
-        #self.pfo_out = firedrake.File(self.out_dir + "pfo.pvd")
-
         ### Create the solver objects
         # Potential solver
         self.phi_solver = PhiSolver(self)
@@ -121,68 +114,41 @@ class Glads2DModel:
         # Step h forward by dt with phi fixed
         self.hs_solver.step(dt)
 
-    # Load all model inputs from a directory except for the mesh and initial
-    # conditions on h, h_w, and phi
-    """
-    def load_inputs(self, in_dir):
-        # Bed
-        B = firedrake.Function(self.U)
-        firedrake.File(in_dir + "B.pvd") >> B
-        # Ice thickness
-        H = firedrake.Function(self.U)
-        firedrake.File(in_dir + "H.pvd") >> H
-        # Melt
-        m = firedrake.Function(self.U)
-        firedrake.File(in_dir + "m.pvd") >> m
-        # Sliding speed
-        u_b = firedrake.Function(self.U)
-        firedrake.File(in_dir + "u_b.pvd") >> u_b
-        # Potential at 0 pressure
-        phi_m = firedrake.Function(self.U)
-        firedrake.File(in_dir + "phi_m.pvd") >> phi_m
-        # Potential at overburden pressure
-        phi_0 = firedrake.Function(self.U)
-        firedrake.File(in_dir + "phi_0.pvd") >> phi_0
-        # Ice overburden pressure
-        p_i = firedrake.Function(self.U)
-        firedrake.File(in_dir + "p_i.pvd") >> p_i
-
-        self.model_inputs["B"] = B
-        self.model_inputs["H"] = H
-        self.model_inputs["m"] = m
-        self.model_inputs["u_b"] = u_b
-        self.model_inputs["phi_m"] = phi_m
-        self.model_inputs["phi_0"] = phi_0
-        self.model_inputs["p_i"] = p_i
-
-    """
 
     # Update the effective pressure to reflect current value of phi
     def update_N(self):
-        phi_0_tmp = firedrake.interpolate(self.phi_0, self.U)
-        phi_tmp = firedrake.interpolate(self.phi, self.U)
-        N_tmp = firedrake.assemble(phi_0_tmp - phi_tmp)
-        self.N.vector().set_local(N_tmp.vector().array())
-        self.N.vector().apply("insert")
+        #phi_0_tmp = firedrake.interpolate(self.phi_0, self.U)
+        #phi_tmp = firedrake.interpolate(self.phi, self.U)
+        #N_tmp = firedrake.assemble(phi_0_tmp - phi_tmp)
+        self.N.assign(self.phi_0 - self.phi)
+        #self.N.vector().set_local(N_tmp.vector().array())
+        #self.N.vector().apply("insert")
 
     # Update the water pressure to reflect current value of phi
     def update_pw(self):
-        phi_tmp = firedrake.interpolate(self.phi, self.U)
-        phi_m_tmp = firedrake.interpolate(self.phi_m, self.U)
-        p_w_tmp = firedrake.assemble(phi_tmp - phi_m_tmp)
-        self.p_w.vector().set_local(p_w_tmp.vector().array())
-        self.p_w.vector().apply("insert")
+        #phi_tmp = firedrake.interpolate(self.phi, self.U)
+        #phi_m_tmp = firedrake.interpolate(self.phi_m, self.U)
+        #p_w_tmp = firedrake.assemble(phi_tmp - phi_m_tmp)
+        #self.p_w.vector().set_local(p_w_tmp.vector().array())
+        #self.p_w.vector().apply("insert")
+
+        self.p_w.assign(self.phi - self.phi_m)
 
     # Update the pressure as a fraction of overburden to reflect the current
     # value of phi
     def update_pfo(self):
         # Update water pressure
         self.update_pw()
+        self.update_pw()
+        # Safer division (in case p_i has tiny values anywhere)
+        eps = firedrake.Constant(1.0)  # Pa; any small positive works since p_i ~ rho*g*H
+        self.pfo.interpolate(self.p_w / firedrake.max_value(self.p_i, eps))
+
 
         # Compute overburden pressure
         p_w_tmp = firedrake.interpolate(self.p_w, self.U)
         p_i_tmp = firedrake.interpolate(self.p_i, self.U)
-        pfo_tmp = firedrake.assemble(p_w_tmp / p_i_tmp)
+        pfo_tmp = firedrake.interpolate(p_w_tmp / p_i_tmp, self.U)
         self.pfo.vector().set_local(pfo_tmp.vector().array())
         self.pfo.vector().apply("insert")
 
@@ -197,9 +163,9 @@ class Glads2DModel:
     # Updates all fields derived from phi
     def update_phi(self):
         # phi_tmp=firedrake.interpolate(self.phi,self.U)
-        self.phi_prev = firedrake.interpolate(self.phi_prev, self.U)
-        phi_tmp = firedrake.interpolate(self.phi, self.U)
-        self.phi_prev.assign(phi_tmp)
+        #self.phi_prev = firedrake.interpolate(self.phi_prev, self.U)
+        #phi_tmp = firedrake.interpolate(self.phi, self.U)
+        self.phi_prev.assign(self.phi)
         self.update_N_cr()
         self.update_dphi_ds_cr()
         self.update_pfo()
@@ -210,14 +176,77 @@ class Glads2DModel:
 
     # Update S**alpha to reflect current value of S
     def update_S_alpha(self):
-        alpha = self.pcs["alpha"]
-        self.S_alpha.vector().set_local(self.S.vector().array() ** alpha)
-        self.S_alpha.vector().apply('insert')
+        #alpha = self.pcs["alpha"]
+        #self.S_alpha.vector().set_local(self.S.vector().array() ** alpha)
+        #self.S_alpha.vector().apply('insert')
+        self.S_alpha.interpolate(self.S ** self.pcs["alpha"])
+
+    import firedrake as fd
+
+    def compute_flux_fields(self):
+        mesh = self.mesh
+
+        # --- Sheet flux vector q_s  (units m^2/s): q_s = -K_s * h^3 * grad(phi)
+        Vvec = fd.VectorFunctionSpace(mesh, "CG", 1)   # or "DG", 0 if you prefer cellwise
+        self.q_s = fd.Function(Vvec, name="q_s")
+        Ks = fd.Constant(self.pcs.get("k"))    # plug in your law/params
+        h  = self.h
+        self.q_s.project(Ks * fd.max_value(h, 0.0)**self.pcs["alpha"] * (fd.inner(fd.grad(self.phi),fd.grad(self.phi))+ fd.Constant(1e-30))**(self.pcs["delta"]/2.0) * fd.grad(self.phi))
+
+        # Optionally save magnitude (cellwise) too
+        Vdg = fd.FunctionSpace(mesh, "DG", 0)
+        self.q_s_mag = fd.Function(Vdg, name="q_s_mag")
+        self.q_s_mag.project(fd.sqrt(fd.inner(self.q_s, self.q_s) + fd.Constant(1e-30)))
+
+        # |∂phi/∂s| averaged per interior facet, abs on boundary
+        self.update_dphi_ds_cr() 
+
+        Vcr = self.dphi_ds_cr.function_space()
+        self.Q_ch = fd.Function(Vcr)
+
+        # Now build Q_ch from your law
+        Kc = fd.Constant(self.pcs.get("k_c"))    # plug in your coefficient
+        # pointwise on CR DOFs:
+        self.Q_ch.interpolate(Kc * fd.max_value(self.S, 0.0)**(fd.Constant(self.pcs["alpha"])) *
+                              fd.max_value(self.dphi_ds_cr, 0.0)**(fd.Constant(self.pcs["delta"])))
+
+
     # Write h, S, pfo, and phi to pvd files
     def write_pvds(self):
-        self.S.assign(firedrake.interpolate(self.S, self.CR))
-        self.h.assign(firedrake.interpolate(self.h, self.U))
+        # create file handles on first call
+        if not hasattr(self, "S_out"):
+            out_dir = self.model_inputs.get("out_dir", "./outputs")
+            os.makedirs(out_dir, exist_ok=True)
+            self.S_out  = firedrake.File(os.path.join(out_dir, "S.pvd"))
+            self.h_out  = firedrake.File(os.path.join(out_dir, "h.pvd"))
+            self.phi_out = firedrake.File(os.path.join(out_dir, "phi.pvd"))
+            self.pfo_out = firedrake.File(os.path.join(out_dir, "pfo.pvd"))
+
+        # You don't need to re-interpolate; S is already CR, h/phi/pfo are U.
         self.S_out << self.S
         self.h_out << self.h
         self.phi_out << self.phi
         self.pfo_out << self.pfo
+
+    def write_checkpoint(self, filename="glads_state.h5"):
+        """
+        Save the current model state to an HDF5 checkpoint file.
+        All functions are saved on their native function spaces.
+        """
+        # Ensure output directory exists
+        os.makedirs(os.path.dirname(filename) or ".", exist_ok=True)
+
+        with firedrake.CheckpointFile(filename, "w") as checkpoint:
+            # Save the mesh first
+            checkpoint.save_mesh(self.mesh)
+
+            # Save all relevant fields
+            checkpoint.save_function(self.h, name="h")               # sheet height (U)
+            checkpoint.save_function(self.S, name="S")               # channel area (CR)
+            checkpoint.save_function(self.phi, name="phi")           # potential (U)
+            checkpoint.save_function(self.pfo, name="pfo")           # fraction overburden (U)
+            checkpoint.save_function(self.N, name="N")               # effective pressure (U)
+            checkpoint.save_function(self.N_cr, name="N_cr")         # effective pressure (CR)
+            checkpoint.save_function(self.h_cr, name="h_cr")         # sheet height (CR)
+            checkpoint.save_function(self.S_alpha, name="S_alpha")   # S^alpha (CR)
+            checkpoint.save_function(self.p_w, name="p_w")       

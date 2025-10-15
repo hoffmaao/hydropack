@@ -13,17 +13,21 @@ dependencies = [
     "matplotlib",
     "rasterio",
     "xarray",
+    "netCDF4",
     "geojson",
     "geopandas",
     "shapely",
     "pooch",
     "gmsh",
-    "pygmsh<=6.1.1",
-    "meshio>=3.3.1",
     "MeshPy",
     "tqdm",
-    "roltrilinos@git+https://github.com/icepack/Trilinos",
-    "ROL@git+https://github.com/icepack/pyrol",
+    "pyroltrilinos",
+]
+
+[project.optional-dependencies]
+pygmsh = [
+    "pygmsh<=6.1.1",
+    "meshio@git+https://github.com/icepack/meshio.git@v4.4.7",
 ]
 
 [build-system]

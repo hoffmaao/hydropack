@@ -21,9 +21,9 @@ water_density = 1000.0 # kg / m^3
 # Density of ice 
 ice_density = 910.0 # kg / m^3
 # Gravitational acceleration 
-gravity = 9.81 # m / s^2
+gravity = 9.8 # m / s^2
 # Flow rate factor of ice
-f = 2.25e-25 # 1 / Pa^3 * s
+f = 3.375e-25 # 1 / Pa^3 * s
 # Glen exponent
 glen_flow_law = 3
 # Gravitational constant
@@ -53,15 +53,15 @@ pcs["g"] = gravity # m / s^2
 # Flow rate factor of ice
 pcs["A"] = f # 1 / Pa^3 * s
 # Average bump height
-pcs["h_r"] = 0.03 # m
+pcs["h_r"] = 0.1 # m
 # Typical spacing between bumps
 pcs["l_r"] = 2.0 # m
 # Sheet width under channel
-pcs["l_c"] = 1.0 # m
+pcs["l_c"] = 2.0 # m
 # Sheet conductivity
 pcs["k"] = 0.005 # m^(7/4) / kg^(1/2)
 # Channel conductivity 
-pcs["k_c"] = .195 # m^(3/2) / kg^(1/2)
+pcs["k_c"] = .1 # m^(3/2) / kg^(1/2)
 # Specific heat capacity of ice 
 pcs["c_w"] = 4.22e3 # J / (kg * K)
 # Pressure melting coefficient 
@@ -74,3 +74,4 @@ pcs["e_v"] = 0.0
 pcs["alpha"] = alpha
 pcs["beta"] = beta
 pcs["delta"] = beta - 2.0
+pcs["gamma"] = 1.0
