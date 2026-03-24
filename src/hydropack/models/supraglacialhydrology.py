@@ -12,7 +12,7 @@
 
 
 import firedrake
-from hydropack.cr_tools import *
+from hydropack.utilities import *
 from hydropack.solvers.hs_solver import *
 from hydropack.solvers.phi_solver import *
 from hydropack.constants import (
@@ -188,10 +188,10 @@ class SaDs2DModel:
     # update effective pressure on edge midpoints to reflect current value of phi
     def update_N_cr(self):
         self.update_N()
-        self.cr_tools.midpoint(self.N,self.N_cr)
+        self.utilities.midpoint(self.N,self.N_cr)
 
     def update_dphi_ds_cr(self):
-        self.cr_tools.ds_assemble(self.phi,self.dphi_ds_cr)
+        self.utilities.ds_assemble(self.phi,self.dphi_ds_cr)
 
     # Updates all fields derived from phi
     def update_phi(self):
@@ -205,7 +205,7 @@ class SaDs2DModel:
 
     # Update the edge midpoint values h_cr to reflect the current value of h
     def update_h_cr(self):
-        self.cr_tools.midpoint(self.h,self.h_cr)
+        self.utilities.midpoint(self.h,self.h_cr)
 
     # Update S**alpha to reflect current value of S
     def update_S_alpha(self):

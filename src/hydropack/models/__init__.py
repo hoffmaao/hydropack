@@ -10,16 +10,8 @@
 # The full text of the license can be found in the file LICENSE in the
 # hydropack source directory or at <http://www.gnu.org/licenses/>.
 
-import hydropack.constants
-import hydropack.physics
-import hydropack.models
-import hydropack.solvers
-import hydropack.plot
+from hydropack.models.subglacialhydrology import SubglacialHydrologyModel
 
 __all__ = [
-    "constants",
-    "physics",
-    "models",
-    "solvers",
-    "plot",
+    "SubglacialHydrologyModel",
 ]

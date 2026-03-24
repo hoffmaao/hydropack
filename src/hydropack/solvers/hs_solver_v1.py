@@ -19,12 +19,12 @@ class HSSolver:
         """
         Parameters
         ----------
-        model : Glads2DModel
+        model : SubglacialHydrologyModel
             Must provide:
               - mesh, U (CG1), CR (CR1)
               - Functions: h (U), S (CR), N (U), N_cr (CR),
                            dphi_ds_cr (CR), u_b (U)
-              - cr_tools.midpoint(h, h_cr)
+              - utilities.midpoint(h, h_cr)
               - update_h_cr(), update_S_alpha()
               - pcs dict with keys: A, l_r, h_r, rho_ice, L, k, k_c, l_c, alpha, delta
                 (aliases below are supported)
@@ -46,7 +46,7 @@ class HSSolver:
         l_c     = C(pcs.get("l_c",      1.0))
         alpha   = C(pcs.get("alpha",    5.0/4.0))
         delta   = C(pcs.get("delta",    1.0/2.0))
-        phi_reg = C(pcs.get("phi_reg",  1e-15))
+        phi_reg = C(pcs.get("phi_reg",  1.0))    # O(1) Pa/m — 1e-15 blows up Jacobian
 
         self._A, self._l_r, self._h_r   = A, l_r, h_r
         self._rho_i, self._L           = rho_i, L

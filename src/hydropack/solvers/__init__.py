@@ -10,16 +10,10 @@
 # The full text of the license can be found in the file LICENSE in the
 # hydropack source directory or at <http://www.gnu.org/licenses/>.
 
-import hydropack.constants
-import hydropack.physics
-import hydropack.models
-import hydropack.solvers
-import hydropack.plot
+from hydropack.solvers.phi_solver import PhiSolver
+from hydropack.solvers.hs_solver import HSSolver
 
 __all__ = [
-    "constants",
-    "physics",
-    "models",
-    "solvers",
-    "plot",
+    "PhiSolver",
+    "HSSolver",
 ]

@@ -1,77 +1,78 @@
-# Copyright (C) 2019 by Andrew Hoffman <hoffmaao@uw.edu>
+# Copyright (C) 2019-2026 by Andrew Hoffman <hoffmaao@uw.edu>
 #
-# This file is part of Andrew's 1D hydrology model
+# This file is part of hydropack.
+#
+# hydropack is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 #
 # The full text of the license can be found in the file LICENSE in the
-# source directory or at <http://www.gnu.org/licenses/>.
+# hydropack source directory or at <http://www.gnu.org/licenses/>.
 
-r"""Physical constants
-This module constains physical constants used throughout the library such
-as the acceleration due to gravity, the density, of ice and water, etc.
+r"""Physical constants and default parameter values for subglacial hydrology
+
+This module contains physical constants and default model parameters used
+throughout the library.  We use SI units (Pa, m, s, kg, K) throughout.
+Default values follow the SHMIP specification (de Fleurian et al., 2018).
 """
 
+#: seconds per day
+seconds_per_day = 86400.0
 
+#: seconds per year (365-day year)
+seconds_per_year = 365.0 * 86400.0
 
-# seconds per day
-day = 60.0 * 60.0 * 25.0
-# seconds per year
-year = 60.0 * 60.0 * 24.0 * 365.0
-# Density of water 
-water_density = 1000.0 # kg / m^3
-# Density of ice 
-ice_density = 910.0 # kg / m^3
-# Gravitational acceleration 
-gravity = 9.8 # m / s^2
-# Flow rate factor of ice
-f = 3.375e-25 # 1 / Pa^3 * s
-# Glen exponent
-glen_flow_law = 3
-# Gravitational constant
+#: density of ice (kg / m^3)
+ice_density = 910.0
+
+#: density of fresh water (kg / m^3)
+water_density = 1000.0
+
+#: acceleration due to gravity (m / s^2)
 gravity = 9.8
-# Specific heat capacity of ice 
-specific_heat = 4.22e3 # J / (kg * K)
-# Pressure melting coefficient 
-pressure_melting = 7.5e-8 # J / (kg * K)
-# Latent heat 
-latent_heat = 3.34e5 # J / kg
-# Exponents
-alpha = 5.0 / 4.0
-beta = 3.0 / 2.0
-delta = beta - 2.0
 
-pcs={}
-# Seconds per day
-pcs["spd"] = day
-# Seconds per year
-pcs["spy"] = year
-# Density of water 
-pcs["rho_water"] = water_density # kg / m^3
-# Density of ice 
-pcs["rho_ice"] = ice_density # kg / m^3
-# Gravitational acceleration 
-pcs["g"] = gravity # m / s^2
-# Flow rate factor of ice
-pcs["A"] = f # 1 / Pa^3 * s
-# Average bump height
-pcs["h_r"] = 0.1 # m
-# Typical spacing between bumps
-pcs["l_r"] = 2.0 # m
-# Sheet width under channel
-pcs["l_c"] = 2.0 # m
-# Sheet conductivity
-pcs["k"] = 0.005 # m^(7/4) / kg^(1/2)
-# Channel conductivity 
-pcs["k_c"] = .1 # m^(3/2) / kg^(1/2)
-# Specific heat capacity of ice 
-pcs["c_w"] = 4.22e3 # J / (kg * K)
-# Pressure melting coefficient 
-pcs["c_t"] = 7.5e-8 # J / (kg * K)
-# Latent heat 
-pcs["L"] = 3.34e5 # J / kg
-# Void storage ratio
-pcs["e_v"] = 0.0
-# Exponents
-pcs["alpha"] = alpha
-pcs["beta"] = beta
-pcs["delta"] = beta - 2.0
-pcs["gamma"] = 1.0
+#: latent heat of fusion (J / kg)
+latent_heat = 3.34e5
+
+#: specific heat capacity of water (J / (kg K))
+heat_capacity_water = 4.22e3
+
+#: Clausius-Clapeyron slope (K / Pa)
+clapeyron_slope = 7.5e-8
+
+#: Glen flow-law exponent
+glen_exponent = 3.0
+
+#: sheet flux-law exponent alpha (Werder et al., 2013)
+sheet_flux_alpha = 5.0 / 4.0
+
+#: sheet flux-law exponent beta
+sheet_flux_beta = 3.0 / 2.0
+
+#: derived exponent delta = beta - 2
+sheet_flux_delta = sheet_flux_beta - 2.0
+
+#: Nye (1953) closure prefactor 2 / n^n for n = 3
+nye_closure_factor = 2.0 / glen_exponent ** glen_exponent
+
+#: sheet conductivity (m^(7/4) / kg^(1/2))
+default_sheet_conductivity = 0.005
+
+#: channel conductivity (m^(3/2) / kg^(1/2))
+default_channel_conductivity = 0.1
+
+#: Glen's flow-rate factor A (Pa^-n s^-1)
+default_flow_rate_factor = 3.375e-24
+
+#: average bump height (m)
+default_bump_height = 0.1
+
+#: typical spacing between bumps (m)
+default_bump_spacing = 2.0
+
+#: sheet width beneath a channel (m)
+default_channel_sheet_width = 2.0
+
+#: englacial void ratio (dimensionless)
+default_englacial_void_ratio = 0.0
