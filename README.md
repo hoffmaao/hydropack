@@ -19,13 +19,13 @@ pip install -e .
 
 The directory `notebooks/` contains tutorial notebooks that walk through the main features:
 
-**01 — Greenland outlet glacier**: distributed sheet drainage, steady-state effective pressure
+**01 Greenland outlet glacier**: distributed sheet drainage, steady-state effective pressure
 
-**02 — Channels**: how Röthlisberger channels emerge at higher melt rates
+**02 Channels**: how Röthlisberger channels emerge at higher melt rates
 
-**03 — Moulins**: concentrated moulin input and channel network structure
+**03 Moulins**: concentrated moulin input and channel network structure
 
-**04 — Mountain glacier**: valley geometry, overdeepenings, and glaciohydraulic supercooling
+**04 Mountain glacier**: valley geometry, overdeepenings, and glaciohydraulic supercooling
 
 ### Validation
 
