@@ -1,0 +1,23 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  glads2:
+    # The GlaDS-2 module and its tests only need NumPy; the Firedrake-based
+    # GlaDS model is not exercised here.
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install test dependencies
+        run: python -m pip install "numpy>=2" matplotlib pytest
+      - name: Run tests
+        run: python -m pytest -v --durations=10
