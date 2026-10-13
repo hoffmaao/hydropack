@@ -87,3 +87,18 @@ The GlaDS-2 tests check:
 - coarse-grid versions of the lake-drainage experiment
 
 They run in CI on every push.
+
+#### Reproduction status (Wells et al., 2026)
+
+Figures produced by the example scripts are in `docs/glads2/`.
+They use the Table 2 parameters and the digitised geometries.
+
+- **Fig. 4 (synthetic lake drainage): close match for the transient.**
+  - Blister height and position at 2, 10, 40 and 90 h, its drainage at the terminus, and channel sizes all agree with the paper.
+  - Before drainage, though, the water pressure inland is about 0.5 of overburden, against about 0.75 in Fig. 4a. An independent 1D shooting solution of the same steady equations also gives 0.5, so the difference comes from the paper's set-up rather than from the solver.
+- **Fig. 3 (stepped glacier): partial.**
+  - The sheet-only steady state at 20 mm/d follows the digitised reference for φ and much of h.
+  - The two cases with channels do not match. The reference cavity height (about 2 cm at the divide) is below the minimum that Table 2 values of A, u_b and h_r allow under about 200 m of ice. This suggests that the Schoof/Hewitt reference used different parameters, which the paper does not list.
+  - At 20 mm/d with channels, the model does not settle to a steady state. Water repeatedly builds up under uplifted ice near the terminus and drains through a growing channel.
+- **Figs. 5 and 6:** scripts provided, not yet run at full resolution. The e_v = 1e-6 case is very expensive with explicit time stepping, as the paper also notes.
+- **Figs. 7 and 8 (North Lake):** set-up provided; it needs BedMachine Greenland v6.
