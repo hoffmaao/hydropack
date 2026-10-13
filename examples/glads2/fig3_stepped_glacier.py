@@ -15,10 +15,12 @@ r"""Reproduce Fig. 3 of Wells et al. (2026): stepped-glacier steady states
 Runs the three steady states of Sect. 3: m = 20 mm/d sheet only,
 m = 20 mm/d with channels, and m = 5 mm/d with channels.  Each one is
 spun up with a large englacial void ratio, which does not change the steady
-state but allows long time steps, and then relaxed with e_v = 1e-5 as in
-the paper.
+state but allows longer time steps, and then relaxed with e_v = 1e-5 as in
+the paper.  Spin-up starts from atmospheric pressure (h = h_g): starting
+near overburden overshoots into widespread uplift, which forces very small
+explicit time steps.
 
-    python examples/glads2/fig3_stepped_glacier.py [--spin-up-days 400] [--out outputs/glads2]
+    python examples/glads2/fig3_stepped_glacier.py [--spin-up-days 100] [--out outputs/glads2]
 """
 
 import argparse
@@ -45,12 +47,10 @@ def run_case(melt_mm, channels, spin_up_days, relax_days):
     if channels:
         # small seed so that channels can grow where melt opening wins
         model.S_x[model.channel_mask_x] = 1e-3
-    model.h = model.h_g + 0.8 * model.delta_h
-    model.diagnose()
     experiments.spin_up(
         model,
         spin_up_days * seconds_per_day,
-        e_v_spin_up=1e-2,
+        e_v_spin_up=1e-3,
         final_duration=relax_days * seconds_per_day,
     )
     q_sheet, Q_channel = model.width_integrated_discharge()
@@ -114,7 +114,7 @@ def plot(results, path):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--spin-up-days", type=float, default=400.0)
+    parser.add_argument("--spin-up-days", type=float, default=100.0)
     parser.add_argument("--relax-days", type=float, default=1.0)
     parser.add_argument("--out", default="outputs/glads2")
     args = parser.parse_args()
